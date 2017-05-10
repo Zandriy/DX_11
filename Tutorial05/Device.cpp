@@ -15,7 +15,7 @@ namespace ZDX
 	struct SimpleVertex
 	{
 		XMFLOAT3 Pos;
-		XMFLOAT4 Color;
+		XMFLOAT3 Normal;
 	};
 
 	struct ConstantBuffer
@@ -23,6 +23,9 @@ namespace ZDX
 		XMMATRIX mWorld;
 		XMMATRIX mView;
 		XMMATRIX mProjection;
+		XMFLOAT4 vLightDir[2];
+		XMFLOAT4 vLightColor[2];
+		XMFLOAT4 vOutputColor;
 	};
 
 	Device::Device(HWND hWnd)
@@ -32,7 +35,7 @@ namespace ZDX
 		{
 			throw res;
 		}
-		res = CreateShaders(L"Tutorial04.fx", L"Tutorial04.fx");
+		res = CreateShaders(L"Tutorial05.fx", L"Tutorial05.fx");
 		if (FAILED(res))
 		{
 			throw res;
@@ -55,6 +58,7 @@ namespace ZDX
 		if (m_pVertexLayout) m_pVertexLayout->Release();
 		if (m_pVertexShader) m_pVertexShader->Release();
 		if (m_pPixelShader) m_pPixelShader->Release();
+		if (m_pPixelShaderSolid) m_pPixelShaderSolid->Release();
 		if (m_pDepthStencil) m_pDepthStencil->Release();
 		if (m_pDepthStencilView) m_pDepthStencilView->Release();
 		if (m_pRenderTargetView) m_pRenderTargetView->Release();
@@ -267,20 +271,31 @@ namespace ZDX
 			t = (timeCur - timeStart) / 1000.0f;
 		}
 
-		// 1st Cube: Rotate around the origin
-		m_World1 = XMMatrixRotationY(t);
+		// Rotate cube around the origin
+		m_World = XMMatrixRotationY(t);
 
-		// 2nd Cube:  Rotate around origin
-		XMMATRIX mSpin = XMMatrixRotationZ(-t);
-		XMMATRIX mOrbit = XMMatrixRotationY(-t * 2.0f);
-		XMMATRIX mTranslate = XMMatrixTranslation(-4.0f, 0.0f, 0.0f);
-		XMMATRIX mScale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+		// Setup our lighting parameters
+		XMFLOAT4 vLightDirs[2] =
+		{
+			XMFLOAT4(-0.577f, 0.577f, -0.577f, 1.0f),
+			XMFLOAT4(0.0f, 0.0f, -1.0f, 1.0f),
+		};
+		XMFLOAT4 vLightColors[2] =
+		{
+			XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f),
+			XMFLOAT4(0.5f, 0.0f, 0.0f, 1.0f)
+		};
 
-		m_World2 = mScale * mSpin * mTranslate * mOrbit;
+		// Rotate the second light around the origin
+		XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
+		XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs[1]);
+		vLightDir = XMVector3Transform(vLightDir, mRotate);
+		XMStoreFloat4(&vLightDirs[1], vLightDir);
 
 		//
 		// Clear the back buffer
 		//
+
 		m_pImmediateContext->ClearRenderTargetView(m_pRenderTargetView, Colors::MidnightBlue);
 
 		//
@@ -289,35 +304,45 @@ namespace ZDX
 		m_pImmediateContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 		//
-		// Update variables for the first cube
+		// Update matrix variables and lighting variables
 		//
 		ConstantBuffer cb1;
-		cb1.mWorld = XMMatrixTranspose(m_World1);
+		cb1.mWorld = XMMatrixTranspose(m_World);
 		cb1.mView = XMMatrixTranspose(m_View);
 		cb1.mProjection = XMMatrixTranspose(m_Projection);
+		cb1.vLightDir[0] = vLightDirs[0];
+		cb1.vLightDir[1] = vLightDirs[1];
+		cb1.vLightColor[0] = vLightColors[0];
+		cb1.vLightColor[1] = vLightColors[1];
+		cb1.vOutputColor = XMFLOAT4(0, 0, 0, 0);
 		m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
 		//
-		// Render the first cube
+		// Render the cube
 		//
 		m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
 		m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
 		m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
+		m_pImmediateContext->PSSetConstantBuffers(0, 1, &m_pConstantBuffer);
 		m_pImmediateContext->DrawIndexed(36, 0, 0);
 
 		//
-		// Update variables for the second cube
+		// Render each light
 		//
-		ConstantBuffer cb2;
-		cb2.mWorld = XMMatrixTranspose(m_World2);
-		cb2.mView = XMMatrixTranspose(m_View);
-		cb2.mProjection = XMMatrixTranspose(m_Projection);
-		m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb2, 0, 0);
+		for (int m = 0; m < 2; m++)
+		{
+			XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs[m]));
+			XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
+			mLight = mLightScale * mLight;
 
-		//
-		// Render the second cube
-		//
-		m_pImmediateContext->DrawIndexed(36, 0, 0);
+			// Update the world variable to reflect the current light
+			cb1.mWorld = XMMatrixTranspose(mLight);
+			cb1.vOutputColor = vLightColors[m];
+			m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+
+			m_pImmediateContext->PSSetShader(m_pPixelShaderSolid, nullptr, 0);
+			m_pImmediateContext->DrawIndexed(36, 0, 0);
+		}
 
 		//
 		// Present our back buffer to our front buffer
@@ -351,7 +376,7 @@ namespace ZDX
 		D3D11_INPUT_ELEMENT_DESC layout[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
 		UINT numElements = ARRAYSIZE(layout);
 
@@ -378,6 +403,21 @@ namespace ZDX
 		// Create the pixel shader
 		hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &m_pPixelShader);
 		pPSBlob->Release();
+		// Compile the pixel shader
+		pPSBlob = nullptr;
+		hr = CompileShaderFromFile(ps, "PSSolid", "ps_4_0", &pPSBlob);
+		if (FAILED(hr))
+		{
+			MessageBox(nullptr,
+				L"The FX file cannot be compiled.  Please run this executable from the directory that contains the FX file.", L"Error", MB_OK);
+			return hr;
+		}
+
+		// Create the pixel shader
+		hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &m_pPixelShaderSolid);
+		pPSBlob->Release();
+		if (FAILED(hr))
+			return hr;
 
 		return hr;
 	}
@@ -388,19 +428,40 @@ namespace ZDX
 		// Create vertex buffer
 		SimpleVertex vertices[] =
 		{
-			{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
-			{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
-			{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
-			{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
-			{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
-			{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
-			{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
-			{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+
+			{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+			{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+
+			{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+			{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+
+			{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+
+			{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+
+			{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 		};
 		D3D11_BUFFER_DESC bd;
 		ZeroMemory(&bd, sizeof(bd));
 		bd.Usage = D3D11_USAGE_DEFAULT;
-		bd.ByteWidth = sizeof(SimpleVertex) * 8;
+		bd.ByteWidth = sizeof(SimpleVertex) * 24;
 		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		bd.CPUAccessFlags = 0;
 		D3D11_SUBRESOURCE_DATA InitData;
@@ -421,20 +482,20 @@ namespace ZDX
 			3,1,0,
 			2,1,3,
 
-			0,5,4,
-			1,5,0,
-
-			3,4,7,
-			0,4,3,
-
-			1,6,5,
-			2,6,1,
-
-			2,7,6,
-			3,7,2,
-
 			6,4,5,
 			7,4,6,
+
+			11,9,8,
+			10,9,11,
+
+			14,12,13,
+			15,12,14,
+
+			19,17,16,
+			18,17,19,
+
+			22,20,21,
+			23,20,22
 		};
 		bd.Usage = D3D11_USAGE_DEFAULT;
 		bd.ByteWidth = sizeof(WORD) * 36;        // 36 vertices needed for 12 triangles in a triangle list
@@ -461,17 +522,16 @@ namespace ZDX
 			return hr;
 
 		// Initialize the world matrix
-		m_World1 = XMMatrixIdentity();
-		m_World2 = XMMatrixIdentity();
+		m_World = XMMatrixIdentity();
 
 		// Initialize the view matrix
-		XMVECTOR Eye = XMVectorSet(0.0f, 1.0f, -5.0f, 0.0f);
+		XMVECTOR Eye = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
 		XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 		XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 		m_View = XMMatrixLookAtLH(Eye, At, Up);
 
 		// Initialize the projection matrix
-		m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, m_aspect, 0.01f, 100.0f);
+		m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_aspect, 0.01f, 100.0f);
 
 		return hr;
 	}
