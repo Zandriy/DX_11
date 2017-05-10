@@ -41,6 +41,7 @@ catch (HRESULT)
 		L"Fatal Error",
 		MB_ICONERROR
 	);
+	return 1;
 }
 catch (...)
 {
@@ -50,4 +51,5 @@ catch (...)
 		L"Fatal Error",
 		MB_ICONERROR
 	);
+	return 2;
 }

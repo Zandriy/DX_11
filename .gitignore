@@ -35,6 +35,5 @@ Debug/
 Release/
 *.VC.db
 *.VC.opendb
-.vs/
 
 *.swp
