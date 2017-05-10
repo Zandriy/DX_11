@@ -27,3 +27,10 @@
 *.exe
 *.out
 *.app
+
+# Visual Studio local artifacts
+.cov/
+DX_11.vcxproj.user
+Debug/
+Release/
+
