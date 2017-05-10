@@ -30,7 +30,11 @@
 
 # Visual Studio local artifacts
 .cov/
-DX_11.vcxproj.user
+*.vcxproj.user
 Debug/
 Release/
+*.VC.db
+*.VC.opendb
+.vs/
 
+*.swp
