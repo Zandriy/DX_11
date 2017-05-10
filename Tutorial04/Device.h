@@ -11,6 +11,7 @@
 #include <windows.h>
 #include <d3d11_1.h>
 #include <directxcolors.h>
+#include <DirectXMath.h>
 
 namespace ZDX
 {
@@ -36,6 +37,17 @@ namespace ZDX
 		ID3D11InputLayout*      m_pVertexLayout{ nullptr };
 		ID3D11Buffer*           m_pVertexBuffer{ nullptr };
 
+		ID3D11Buffer*           m_pIndexBuffer{ nullptr };
+		ID3D11Buffer*           m_pConstantBuffer{ nullptr };
+		DirectX::XMMATRIX       m_World1;
+		DirectX::XMMATRIX       m_World2;
+		DirectX::XMMATRIX       m_View;
+		DirectX::XMMATRIX       m_Projection;
+
+		ID3D11Texture2D*        m_pDepthStencil{ nullptr };
+		ID3D11DepthStencilView* m_pDepthStencilView{ nullptr };
+
+		float                   m_aspect{};
 
 		HRESULT InitDevice(HWND hWnd);
 		HRESULT CreateShaders(const WCHAR* vs, const WCHAR* ps);

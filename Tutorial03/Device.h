@@ -47,6 +47,7 @@ namespace ZDX
 		HRESULT InitDevice(HWND hWnd);
 		HRESULT CreateShaders(const WCHAR* vs, const WCHAR* ps);
 		HRESULT CompileShaderFromFile(const WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
+		HRESULT LoadData();
 	};
 
 } // namespace ZDX

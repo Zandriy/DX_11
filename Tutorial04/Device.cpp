@@ -6,8 +6,7 @@
 */
 
 #include "Device.h"
-#include "d3dcompiler.h"
-#include "DirectXMath.h"
+#include <d3dcompiler.h>
 
 namespace ZDX
 {
@@ -16,6 +15,14 @@ namespace ZDX
 	struct SimpleVertex
 	{
 		XMFLOAT3 Pos;
+		XMFLOAT4 Color;
+	};
+
+	struct ConstantBuffer
+	{
+		XMMATRIX mWorld;
+		XMMATRIX mView;
+		XMMATRIX mProjection;
 	};
 
 	Device::Device(HWND hWnd)
@@ -25,7 +32,7 @@ namespace ZDX
 		{
 			throw res;
 		}
-		res = CreateShaders(L"Tutorial02.fx", L"Tutorial02.fx");
+		res = CreateShaders(L"Tutorial04.fx", L"Tutorial04.fx");
 		if (FAILED(res))
 		{
 			throw res;
@@ -42,10 +49,14 @@ namespace ZDX
 	{
 		if (m_pImmediateContext) m_pImmediateContext->ClearState();
 
+		if (m_pConstantBuffer) m_pConstantBuffer->Release();
 		if (m_pVertexBuffer) m_pVertexBuffer->Release();
+		if (m_pIndexBuffer) m_pIndexBuffer->Release();
 		if (m_pVertexLayout) m_pVertexLayout->Release();
 		if (m_pVertexShader) m_pVertexShader->Release();
 		if (m_pPixelShader) m_pPixelShader->Release();
+		if (m_pDepthStencil) m_pDepthStencil->Release();
+		if (m_pDepthStencilView) m_pDepthStencilView->Release();
 		if (m_pRenderTargetView) m_pRenderTargetView->Release();
 		if (m_pSwapChain1) m_pSwapChain1->Release();
 		if (m_pSwapChain) m_pSwapChain->Release();
@@ -54,7 +65,7 @@ namespace ZDX
 		if (m_pd3dDevice1) m_pd3dDevice1->Release();
 		if (m_pd3dDevice) m_pd3dDevice->Release();
 	}
-	
+
 	HRESULT Device::InitDevice(HWND hWnd)
 	{
 		HRESULT hr = S_OK;
@@ -194,7 +205,35 @@ namespace ZDX
 		if (FAILED(hr))
 			return hr;
 
-		m_pImmediateContext->OMSetRenderTargets(1, &m_pRenderTargetView, nullptr);
+		// Create depth stencil texture
+		D3D11_TEXTURE2D_DESC descDepth;
+		ZeroMemory(&descDepth, sizeof(descDepth));
+		descDepth.Width = width;
+		descDepth.Height = height;
+		descDepth.MipLevels = 1;
+		descDepth.ArraySize = 1;
+		descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		descDepth.SampleDesc.Count = 1;
+		descDepth.SampleDesc.Quality = 0;
+		descDepth.Usage = D3D11_USAGE_DEFAULT;
+		descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		descDepth.CPUAccessFlags = 0;
+		descDepth.MiscFlags = 0;
+		hr = m_pd3dDevice->CreateTexture2D(&descDepth, nullptr, &m_pDepthStencil);
+		if (FAILED(hr))
+			return hr;
+
+		// Create the depth stencil view
+		D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
+		ZeroMemory(&descDSV, sizeof(descDSV));
+		descDSV.Format = descDepth.Format;
+		descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+		descDSV.Texture2D.MipSlice = 0;
+		hr = m_pd3dDevice->CreateDepthStencilView(m_pDepthStencil, &descDSV, &m_pDepthStencilView);
+		if (FAILED(hr))
+			return hr;
+
+		m_pImmediateContext->OMSetRenderTargets(1, &m_pRenderTargetView, m_pDepthStencilView);
 
 		// Setup the viewport
 		D3D11_VIEWPORT vp;
@@ -206,27 +245,125 @@ namespace ZDX
 		vp.TopLeftY = 0;
 		m_pImmediateContext->RSSetViewports(1, &vp);
 
+		// Compile the vertex shader
+		ID3DBlob* pVSBlob = nullptr;
+		hr = CompileShaderFromFile(L"Tutorial04.fx", "VS", "vs_4_0", &pVSBlob);
+		if (FAILED(hr))
+		{
+			MessageBox(nullptr,
+				L"The FX file cannot be compiled.  Please run this executable from the directory that contains the FX file.", L"Error", MB_OK);
+			return hr;
+		}
+
+		// Create the vertex shader
+		hr = m_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &m_pVertexShader);
+		if (FAILED(hr))
+		{
+			pVSBlob->Release();
+			return hr;
+		}
+
+		// Define the input layout
+		D3D11_INPUT_ELEMENT_DESC layout[] =
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		};
+		UINT numElements = ARRAYSIZE(layout);
+
+		// Create the input layout
+		hr = m_pd3dDevice->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(),
+			pVSBlob->GetBufferSize(), &m_pVertexLayout);
+		pVSBlob->Release();
+		if (FAILED(hr))
+			return hr;
+
+		// Set the input layout
+		m_pImmediateContext->IASetInputLayout(m_pVertexLayout);
+
+		m_aspect = width / (FLOAT)height;
+
 		return hr;
 	}
 
 	void Device::Render()
 	{
-		// Clear the back buffer 
+		// Update our time
+		static float t = 0.0f;
+		if (m_driverType == D3D_DRIVER_TYPE_REFERENCE)
+		{
+			t += (float)XM_PI * 0.0125f;
+		}
+		else
+		{
+			static ULONGLONG timeStart = 0;
+			ULONGLONG timeCur = GetTickCount64();
+			if (timeStart == 0)
+				timeStart = timeCur;
+			t = (timeCur - timeStart) / 1000.0f;
+		}
+
+		// 1st Cube: Rotate around the origin
+		m_World1 = XMMatrixRotationY(t);
+
+		// 2nd Cube:  Rotate around origin
+		XMMATRIX mSpin = XMMatrixRotationZ(-t);
+		XMMATRIX mOrbit = XMMatrixRotationY(-t * 2.0f);
+		XMMATRIX mTranslate = XMMatrixTranslation(-4.0f, 0.0f, 0.0f);
+		XMMATRIX mScale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+
+		m_World2 = mScale * mSpin * mTranslate * mOrbit;
+
+		//
+		// Clear the back buffer
+		//
 		m_pImmediateContext->ClearRenderTargetView(m_pRenderTargetView, Colors::MidnightBlue);
 
-		// Render a triangle
-		m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
-		m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
-		m_pImmediateContext->Draw(3, 0);
+		//
+		// Clear the depth buffer to 1.0 (max depth)
+		//
+		m_pImmediateContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
-		// Present the information rendered to the back buffer to the front buffer (the screen)
+		//
+		// Update variables for the first cube
+		//
+		ConstantBuffer cb1;
+		cb1.mWorld = XMMatrixTranspose(m_World1);
+		cb1.mView = XMMatrixTranspose(m_View);
+		cb1.mProjection = XMMatrixTranspose(m_Projection);
+		m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+
+		//
+		// Render the first cube
+		//
+		m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
+		m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
+		m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
+		m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+		//
+		// Update variables for the second cube
+		//
+		ConstantBuffer cb2;
+		cb2.mWorld = XMMatrixTranspose(m_World2);
+		cb2.mView = XMMatrixTranspose(m_View);
+		cb2.mProjection = XMMatrixTranspose(m_Projection);
+		m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb2, 0, 0);
+
+		//
+		// Render the second cube
+		//
+		m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+		//
+		// Present our back buffer to our front buffer
+		//
 		m_pSwapChain->Present(0, 0);
 	}
 
 	HRESULT Device::CreateShaders(const WCHAR* vs, const WCHAR* ps)
 	{
 		HRESULT hr = S_OK;
-
 		// Compile the vertex shader
 		ID3DBlob* pVSBlob = nullptr;
 		hr = CompileShaderFromFile(vs, "VS", "vs_4_0", &pVSBlob);
@@ -249,6 +386,7 @@ namespace ZDX
 		D3D11_INPUT_ELEMENT_DESC layout[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
 		UINT numElements = ARRAYSIZE(layout);
 
@@ -285,14 +423,19 @@ namespace ZDX
 		// Create vertex buffer
 		SimpleVertex vertices[] =
 		{
-			XMFLOAT3(0.0f, 0.5f, 0.5f),
-			XMFLOAT3(0.5f, -0.5f, 0.5f),
-			XMFLOAT3(-0.5f, -0.5f, 0.5f),
+			{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
+			{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
+			{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
+			{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
 		};
 		D3D11_BUFFER_DESC bd;
 		ZeroMemory(&bd, sizeof(bd));
 		bd.Usage = D3D11_USAGE_DEFAULT;
-		bd.ByteWidth = sizeof(SimpleVertex) * 3;
+		bd.ByteWidth = sizeof(SimpleVertex) * 8;
 		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		bd.CPUAccessFlags = 0;
 		D3D11_SUBRESOURCE_DATA InitData;
@@ -307,8 +450,63 @@ namespace ZDX
 		UINT offset = 0;
 		m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
+		// Create index buffer
+		WORD indices[] =
+		{
+			3,1,0,
+			2,1,3,
+
+			0,5,4,
+			1,5,0,
+
+			3,4,7,
+			0,4,3,
+
+			1,6,5,
+			2,6,1,
+
+			2,7,6,
+			3,7,2,
+
+			6,4,5,
+			7,4,6,
+		};
+		bd.Usage = D3D11_USAGE_DEFAULT;
+		bd.ByteWidth = sizeof(WORD) * 36;        // 36 vertices needed for 12 triangles in a triangle list
+		bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		bd.CPUAccessFlags = 0;
+		InitData.pSysMem = indices;
+		hr = m_pd3dDevice->CreateBuffer(&bd, &InitData, &m_pIndexBuffer);
+		if (FAILED(hr))
+			return hr;
+
+		// Set index buffer
+		m_pImmediateContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
 		// Set primitive topology
 		m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		// Create the constant buffer
+		bd.Usage = D3D11_USAGE_DEFAULT;
+		bd.ByteWidth = sizeof(ConstantBuffer);
+		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		bd.CPUAccessFlags = 0;
+		hr = m_pd3dDevice->CreateBuffer(&bd, nullptr, &m_pConstantBuffer);
+		if (FAILED(hr))
+			return hr;
+
+		// Initialize the world matrix
+		m_World1 = XMMatrixIdentity();
+		m_World2 = XMMatrixIdentity();
+
+		// Initialize the view matrix
+		XMVECTOR Eye = XMVectorSet(0.0f, 1.0f, -5.0f, 0.0f);
+		XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+		XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+		m_View = XMMatrixLookAtLH(Eye, At, Up);
+
+		// Initialize the projection matrix
+		m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, m_aspect, 0.01f, 100.0f);
 
 		return hr;
 	}

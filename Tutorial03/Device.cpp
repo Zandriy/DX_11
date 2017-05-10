@@ -37,6 +37,11 @@ namespace ZDX
 		{
 			throw res;
 		}
+		res = LoadData();
+		if (FAILED(res))
+		{
+			throw res;
+		}
 	}
 
 
@@ -265,7 +270,6 @@ namespace ZDX
 		m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
 		m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
 		m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
-		m_pImmediateContext->Draw(3, 0);
 		m_pImmediateContext->DrawIndexed(36, 0, 0);        // 36 vertices needed for 12 triangles in a triangle list
 
 		//
@@ -327,9 +331,13 @@ namespace ZDX
 		// Create the pixel shader
 		hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &m_pPixelShader);
 		pPSBlob->Release();
-		if (FAILED(hr))
-			return hr;
 
+		return hr;
+	}
+
+	HRESULT Device::LoadData()
+	{
+		HRESULT hr = S_OK;
 		// Create vertex buffer
 		SimpleVertex vertices[] =
 		{
