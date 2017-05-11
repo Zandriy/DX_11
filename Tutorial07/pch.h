@@ -42,7 +42,6 @@
 #include <d3dx11_x.h>  // utility 12.x header
 #define DCOMMON_H_INCLUDED
 #else
-#include <dxgi1_4.h>
 #include <d3d11.h>
 #endif
 
