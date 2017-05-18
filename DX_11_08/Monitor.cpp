@@ -6,49 +6,38 @@
 */
 
 #include "Monitor.h"
-#include <vector>
-#include <DXGI1_2.h>
-#include <DXGITYPE.h>
-#include <gdiplus.h>
+#include <stdexcept>
 
 namespace ZDX
 {
 
-	Monitor::Monitor(CComPtr<IDXGIAdapter1> adapter1)
-		: m_adapter1(adapter1)
+	Monitor::Monitor(CComPtr<IDXGIAdapter1> adapter1, CComPtr<IDXGIOutput1> DXGI_output1)
+		: m_adapter1{ adapter1 }
+		, m_DXGI_output1{ DXGI_output1 }
 	{
-		init();
+		if(!init())
+			throw std::domain_error("Monitor is not initialized.");
 	}
 
 	Monitor::~Monitor()
 	{
 	}
 
+	RECT Monitor::rect() const
+	{
+		DXGI_OUTPUT_DESC outDesc;
+		m_DXGI_output1->GetDesc(&outDesc);
+		return outDesc.DesktopCoordinates;
+	}
+
+
+	DXGI_MODE_ROTATION Monitor::rotation() const
+	{
+		return DXGI_MODE_ROTATION_UNSPECIFIED;
+	}
+
 	bool Monitor::init()
 	{
-		using namespace std;
-
-		// Iterating over all adapters to get all outputs
-		vector<CComPtr<IDXGIOutput>> outputs;
-
-		CComPtr<IDXGIOutput> DXGI_output;
-		for (int i = 0; (m_adapter1)->EnumOutputs(i, &DXGI_output) != DXGI_ERROR_NOT_FOUND; i++)
-		{
-			DXGI_OUTPUT_DESC outputDesc;
-			DXGI_output->GetDesc(&outputDesc);
-
-			if (outputDesc.AttachedToDesktop)
-			{
-				outputs.push_back(DXGI_output);
-			}
-
-			DXGI_output.Release();
-		}
-
-		if (outputs.size() == 0)
-			return false;
-
-		// Creating device for each adapter that has the output
 		D3D_FEATURE_LEVEL fl = D3D_FEATURE_LEVEL_9_1;
 		HRESULT hr = D3D11CreateDevice((m_adapter1), D3D_DRIVER_TYPE_UNKNOWN, NULL, 0, NULL, 0, D3D11_SDK_VERSION, &m_D3D_device, &fl, &m_D3D_device_context);
 		if (FAILED(hr))
@@ -56,19 +45,12 @@ namespace ZDX
 			return false;
 		}
 
-		for (std::vector<CComPtr<IDXGIOutput>>::iterator OutputIter = outputs.begin();
-			OutputIter != outputs.end();
-			OutputIter++)
-		{
-			m_DXGI_output1 = *OutputIter;
-			CComQIPtr<IDXGIDevice1> spDXGIDevice = m_D3D_device;
-			if (!m_DXGI_output1 || !spDXGIDevice)
-				continue;
-
-			hr = m_DXGI_output1->DuplicateOutput(spDXGIDevice, &m_DXGI_output_duplication);
-			if (FAILED(hr))
-				continue;
-		}
+		CComQIPtr<IDXGIDevice1> spDXGIDevice = m_D3D_device;
+		if (!m_DXGI_output1 || !spDXGIDevice)
+			return false;
+		hr = m_DXGI_output1->DuplicateOutput(spDXGIDevice, &m_DXGI_output_duplication);
+		if (FAILED(hr))
+			return false;
 
 		return true;
 	}

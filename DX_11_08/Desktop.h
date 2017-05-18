@@ -9,6 +9,8 @@
 #define zxdDesktop_h
 
 #include <vector>
+#include <memory>
+#include <limits>
 #include <windows.h>
 #include <atlbase.h>
 #include <Wincodec.h>
@@ -19,22 +21,24 @@ namespace ZDX
 	class Desktop
 	{
 	public:
-		Desktop(int monitor_number = 0);
+		explicit Desktop(size_t monitor_number = UINT_MAX/* -1 is the whole desktop */, size_t pixel_size = 4 /* size in bytes */);
 		~Desktop();
 
 		bool acquire_next_buffer();
-		const BYTE* get_buffer();
-		bool save(const char* file_name);
+		const BYTE* get_buffer() const;
+		bool save(const char* file_name) const;
 	private:
 		std::vector<Monitor> m_monitors;
-		int m_active_monitor_number{};
-		BYTE* m_buffer{};
+		std::unique_ptr<BYTE> m_buffer{};
 		size_t m_buffer_size{};
 		ULONG_PTR m_gdi_plus_token{};
 		CComPtr<IDXGIFactory1> m_DXGI_factory1;
 		CComPtr<IWICImagingFactory> m_WIC_factory;
+		RECT m_capture_rect{ 0, 0, 0, 0 };
+		const size_t m_pixel_size;
+		const size_t m_active_monitor_number;
 
-		void prepare_buffer();
+		bool prepare_buffer();
 		bool init();
 	};
 

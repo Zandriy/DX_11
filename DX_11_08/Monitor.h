@@ -18,13 +18,15 @@ namespace ZDX
 	class Monitor
 	{
 	public:
-		Monitor(CComPtr<IDXGIAdapter1> adapter1);
+		Monitor(CComPtr<IDXGIAdapter1> adapter1, CComPtr<IDXGIOutput1> DXGI_output1);
 		~Monitor();
+		RECT rect() const;
+		DXGI_MODE_ROTATION rotation() const;
 	private:
 		CComPtr<IDXGIAdapter1> m_adapter1;
+		CComPtr<IDXGIOutput1> m_DXGI_output1;
 		CComPtr<ID3D11Device> m_D3D_device;
 		CComPtr<ID3D11DeviceContext> m_D3D_device_context;
-		CComPtr<IDXGIOutput1> m_DXGI_output1;
 		CComPtr<IDXGIOutputDuplication> m_DXGI_output_duplication;
 
 		bool init();

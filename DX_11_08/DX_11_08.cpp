@@ -12,9 +12,9 @@ using namespace ZDX;
 
 int main()
 {
-	Desktop desktop;
+	Desktop desktop{0};
 	desktop.acquire_next_buffer();
-	desktop.get_buffer();
+	const BYTE* buffer = desktop.get_buffer();
 	desktop.save("test.png");
 	
     return 0;
