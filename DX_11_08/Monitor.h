@@ -21,6 +21,8 @@ namespace ZDX
 		Monitor(CComPtr<IDXGIAdapter1> adapter1, CComPtr<IDXGIOutput1> DXGI_output1);
 		~Monitor();
 		RECT rect() const;
+		SIZE size() const;
+		bool copy_bits(BYTE* biffer) const;
 		DXGI_MODE_ROTATION rotation() const;
 	private:
 		CComPtr<IDXGIAdapter1> m_adapter1;

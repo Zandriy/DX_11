@@ -30,10 +30,69 @@ namespace ZDX
 		return outDesc.DesktopCoordinates;
 	}
 
+	SIZE Monitor::size() const
+	{
+		DXGI_OUTPUT_DESC outDesc;
+		m_DXGI_output1->GetDesc(&outDesc);
+		RECT rect = outDesc.DesktopCoordinates;
+		return { rect.right - rect.left, rect.bottom - rect.top };
+	}
+
+	bool Monitor::copy_bits(BYTE* biffer) const
+	{
+		DXGI_OUTDUPL_FRAME_INFO fi;
+		CComPtr<IDXGIResource> spDXGIResource;
+		HRESULT hr = m_DXGI_output_duplication->AcquireNextFrame(20, &fi, &spDXGIResource);
+		if (FAILED(hr))
+		{
+			return false;
+		}
+
+		CComQIPtr<ID3D11Texture2D> spTextureResource = spDXGIResource;
+
+		D3D11_TEXTURE2D_DESC desc;
+		spTextureResource->GetDesc(&desc);
+
+		D3D11_TEXTURE2D_DESC texDesc;
+		ZeroMemory(&texDesc, sizeof(texDesc));
+		texDesc.Width = desc.Width;
+		texDesc.Height = desc.Height;
+		texDesc.MipLevels = 1;
+		texDesc.ArraySize = 1;
+		texDesc.SampleDesc.Count = 1;
+		texDesc.SampleDesc.Quality = 0;
+		texDesc.Usage = D3D11_USAGE_STAGING;
+		texDesc.Format = desc.Format;
+		texDesc.BindFlags = 0;
+		texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		texDesc.MiscFlags = 0;
+
+		CComPtr<ID3D11Texture2D> spD3D11Texture2D = NULL;
+		hr = m_D3D_device->CreateTexture2D(&texDesc, NULL, &spD3D11Texture2D);
+		if (FAILED(hr))
+			return false;
+
+		m_D3D_device_context->CopyResource(spD3D11Texture2D, spTextureResource);
+
+		CComQIPtr<IDXGISurface1> spDXGISurface = spD3D11Texture2D;
+
+		DXGI_MAPPED_RECT map;
+		spDXGISurface->Map(&map, DXGI_MAP_READ);
+
+		switch (rotation())
+		{
+		case DXGI_MODE_ROTATION_IDENTITY:
+		{
+		}
+		break;
+		}
+	}
 
 	DXGI_MODE_ROTATION Monitor::rotation() const
 	{
-		return DXGI_MODE_ROTATION_UNSPECIFIED;
+		DXGI_OUTPUT_DESC outDesc;
+		m_DXGI_output1->GetDesc(&outDesc);
+		return outDesc.Rotation;
 	}
 
 	bool Monitor::init()

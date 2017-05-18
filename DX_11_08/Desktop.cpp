@@ -34,13 +34,17 @@ namespace ZDX
 		{
 			for (auto monitor : m_monitors)
 			{
+				if(!monitor.copy_bits(m_buffer.get()))
+					return false;
 			}
 		}
 		else
 		{
+			if(!m_monitors[m_active_monitor_number].copy_bits(m_buffer.get()))
+				return false;
 		}
 
-		return false;
+		return true;
 	}
 
 	const BYTE* Desktop::get_buffer() const
