@@ -18,36 +18,17 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="dds.h" />
-    <ClInclude Include="DDSTextureLoader.h" />
-    <ClInclude Include="Device.h" />
-    <ClInclude Include="DirectXHelpers.h" />
-    <ClInclude Include="LoaderHelpers.h" />
-    <ClInclude Include="pch.h" />
-    <ClInclude Include="PlatformHelpers.h" />
-    <ClInclude Include="WICTextureLoader.h" />
-    <ClInclude Include="Window.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="DDSTextureLoader.cpp" />
-    <ClCompile Include="Device.cpp" />
-    <ClCompile Include="pch.cpp" />
-    <ClCompile Include="DX_11_07.cpp" />
-    <ClCompile Include="WICTextureLoader.cpp" />
-    <ClCompile Include="Window.cpp" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{4E2EECD1-391C-428E-B14D-493EC8ABC195}</ProjectGuid>
+    <ProjectGuid>{C36AAD79-AF37-45F4-957C-FEE107D487DB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>DX_11</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -162,6 +143,15 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Device.cpp" />
+    <ClCompile Include="DX_11_01.cpp" />
+    <ClCompile Include="Window.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Window.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
