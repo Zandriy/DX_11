@@ -58,12 +58,6 @@ namespace ZDX
 
 		RECT r = rect();
 		SIZE s = size();
-		if (EqualRect(&r, &buffer_rect))
-		{
-			std::copy_n(map.pBits, s.cx * s.cy * m_pixel_size, buffer);
-			return true;
-		}
-
 		SIZE buffer_offset_corner{ r.left - buffer_rect.left, r.top - buffer_rect.top };
 		size_t monitor_line_size = s.cx * m_pixel_size;
 		size_t buffer_line_size = (buffer_rect.right - buffer_rect.left) * m_pixel_size;
@@ -72,21 +66,43 @@ namespace ZDX
 		switch (rotation())
 		{
 		case DXGI_MODE_ROTATION_IDENTITY:
+		case DXGI_MODE_ROTATION_ROTATE180:
 		{
-			for (LONG i = 0; i < s.cy; ++i)
+			if (EqualRect(&r, &buffer_rect))
 			{
-				std::copy_n(map.pBits + monitor_line_size * i, monitor_line_size, buffer + (buffer_offset + buffer_line_size * i));
+				std::copy_n(map.pBits, s.cx * s.cy * m_pixel_size, buffer);
+			}
+			else
+			{
+				for (LONG i = 0; i < s.cy; ++i)
+				{
+					std::copy_n(map.pBits + monitor_line_size * i, monitor_line_size, buffer + (buffer_offset + buffer_line_size * i));
+				}
 			}
 		}
 		break;
 		case DXGI_MODE_ROTATION_ROTATE90:
-		case DXGI_MODE_ROTATION_ROTATE180:
 		case DXGI_MODE_ROTATION_ROTATE270:
+		{
+			size_t monitor_line_size = s.cy * m_pixel_size;
+			for (LONG y = 0; y < s.cx; ++y)
+			{
+				for (LONG x = 0; x < monitor_line_size; ++x)
+				{
+					buffer[(buffer_offset + buffer_line_size * y + x)] = map.pBits[monitor_line_size * y + x];
+				}
+			}
+		}
+		break;
 		default:
+			IDXGI_surface1->Unmap();
+			m_DXGI_output_duplication->ReleaseFrame();
 			return false;
 			break;
 		}
 
+		IDXGI_surface1->Unmap();
+		m_DXGI_output_duplication->ReleaseFrame();
 		return true;
 	}
 
