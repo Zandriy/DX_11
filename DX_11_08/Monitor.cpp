@@ -56,8 +56,14 @@ namespace ZDX
 		DXGI_MAPPED_RECT map;
 		IDXGI_surface1->Map(&map, DXGI_MAP_READ);
 
-		SIZE s = size();
 		RECT r = rect();
+		SIZE s = size();
+		if (EqualRect(&r, &buffer_rect))
+		{
+			std::copy_n(map.pBits, s.cx * s.cy * m_pixel_size, buffer);
+			return true;
+		}
+
 		SIZE buffer_offset_corner{ r.left - buffer_rect.left, r.top - buffer_rect.top };
 		size_t monitor_line_size = s.cx * m_pixel_size;
 		size_t buffer_line_size = (buffer_rect.right - buffer_rect.left) * m_pixel_size;
@@ -73,6 +79,9 @@ namespace ZDX
 			}
 		}
 		break;
+		case DXGI_MODE_ROTATION_ROTATE90:
+		case DXGI_MODE_ROTATION_ROTATE180:
+		case DXGI_MODE_ROTATION_ROTATE270:
 		default:
 			return false;
 			break;
