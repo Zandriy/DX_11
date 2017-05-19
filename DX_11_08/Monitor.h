@@ -22,16 +22,20 @@ namespace ZDX
 		~Monitor();
 		RECT rect() const;
 		SIZE size() const;
-		bool copy_bits(BYTE* biffer) const;
-		DXGI_MODE_ROTATION rotation() const;
+		size_t pixel_size() const;
+		bool copy_bits(BYTE* buffer, RECT buffer_rect);
 	private:
 		CComPtr<IDXGIAdapter1> m_adapter1;
 		CComPtr<IDXGIOutput1> m_DXGI_output1;
 		CComPtr<ID3D11Device> m_D3D_device;
 		CComPtr<ID3D11DeviceContext> m_D3D_device_context;
 		CComPtr<IDXGIOutputDuplication> m_DXGI_output_duplication;
+		CComPtr<ID3D11Texture2D> m_D3D11_texture;
+		const size_t m_pixel_size{4};
 
 		bool init();
+		bool get_texture();
+		DXGI_MODE_ROTATION rotation() const;
 	};
 
 } // namespace ZDX

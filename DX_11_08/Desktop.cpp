@@ -14,9 +14,8 @@
 namespace ZDX
 {
 
-	Desktop::Desktop(size_t monitor_number, size_t pixel_size)
+	Desktop::Desktop(size_t monitor_number)
 		: m_active_monitor_number{ monitor_number }
-		, m_pixel_size{ pixel_size }
 	{
 		CoInitialize(NULL);
 		if (!init() || !prepare_buffer())
@@ -34,13 +33,13 @@ namespace ZDX
 		{
 			for (auto monitor : m_monitors)
 			{
-				if(!monitor.copy_bits(m_buffer.get()))
+				if (!monitor.copy_bits(m_buffer.get(), m_capture_rect))
 					return false;
 			}
 		}
 		else
 		{
-			if(!m_monitors[m_active_monitor_number].copy_bits(m_buffer.get()))
+			if(!m_monitors[m_active_monitor_number].copy_bits(m_buffer.get(), m_capture_rect))
 				return false;
 		}
 
@@ -60,20 +59,23 @@ namespace ZDX
 	bool Desktop::prepare_buffer()
 	{
 		SetRect(&m_capture_rect, 0, 0, 0, 0);
+		size_t pixel_size{};
 		if (m_monitors.size() <= m_active_monitor_number)
 		{
 			for (auto monitor : m_monitors)
 			{
 				UnionRect(&m_capture_rect, &m_capture_rect, &monitor.rect());
+				pixel_size = monitor.pixel_size();
 			}
 		}
 		else
 		{
 			UnionRect(&m_capture_rect, &m_capture_rect, &m_monitors[m_active_monitor_number].rect());
+			pixel_size = m_monitors[m_active_monitor_number].pixel_size();
 		}
 
 		SIZE rect_size{ m_capture_rect.right - m_capture_rect.left, m_capture_rect.bottom - m_capture_rect.top };
-		m_buffer.reset(new BYTE[rect_size.cx * rect_size.cy * m_pixel_size]);
+		m_buffer.reset(new BYTE[rect_size.cx * rect_size.cy * pixel_size]);
 
 		return !!m_buffer;
 	}

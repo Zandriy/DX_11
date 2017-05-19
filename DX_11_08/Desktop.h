@@ -21,7 +21,7 @@ namespace ZDX
 	class Desktop
 	{
 	public:
-		explicit Desktop(size_t monitor_number = UINT_MAX/* -1 is the whole desktop */, size_t pixel_size = 4 /* size in bytes */);
+		explicit Desktop(size_t monitor_number = UINT_MAX/* -1 is the whole desktop */);
 		~Desktop();
 
 		bool acquire_next_buffer();
@@ -35,7 +35,6 @@ namespace ZDX
 		CComPtr<IDXGIFactory1> m_DXGI_factory1;
 		CComPtr<IWICImagingFactory> m_WIC_factory;
 		RECT m_capture_rect{ 0, 0, 0, 0 };
-		const size_t m_pixel_size;
 		const size_t m_active_monitor_number;
 
 		bool prepare_buffer();
