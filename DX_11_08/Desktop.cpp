@@ -53,7 +53,67 @@ namespace ZDX
 	
 	bool Desktop::save(const char* file_name) const
 	{
-		return false;
+		if (!m_buffer)
+		{
+			return false;
+		}
+
+		SIZE s{ m_capture_rect.right - m_capture_rect.left, m_capture_rect.bottom - m_capture_rect.top };
+		CComPtr<IWICBitmap> IWIC_bitmap = NULL;
+		if (FAILED(m_WIC_factory->CreateBitmapFromMemory(s.cx, s.cy, GUID_WICPixelFormat32bppBGRA, s.cx*4, m_buffer_size, m_buffer.get(), &IWIC_bitmap)))
+		{
+			return false;
+		}
+		CComPtr<IWICStream> IWIC_stream = NULL;
+		if (FAILED(m_WIC_factory->CreateStream(&IWIC_stream)))
+		{
+			return false;
+		}
+		if (FAILED(IWIC_stream->InitializeFromFilename(L"capture.bmp", GENERIC_WRITE)))
+		{
+			return false;
+		}
+		CComPtr<IWICBitmapEncoder> IWIC_bitmap_encoder = NULL;		
+		if (FAILED(m_WIC_factory->CreateEncoder(GUID_ContainerFormatBmp, NULL, &IWIC_bitmap_encoder)))
+		{
+			return false;
+		}
+		if (FAILED(IWIC_bitmap_encoder->Initialize(IWIC_stream, WICBitmapEncoderNoCache)))
+		{
+			return false;
+		}
+		CComPtr<IWICBitmapFrameEncode> IWIC_bitmap_frame_encode = NULL;		
+		if (FAILED(IWIC_bitmap_encoder->CreateNewFrame(&IWIC_bitmap_frame_encode, NULL)))
+		{
+			return false;
+		}		
+		if (FAILED(IWIC_bitmap_frame_encode->Initialize(NULL)))
+		{
+			return false;
+		}		
+		if (FAILED(IWIC_bitmap_frame_encode->SetSize(s.cx, s.cy)))
+		{
+			return false;
+		}
+		WICPixelFormatGUID format;
+		IWIC_bitmap->GetPixelFormat(&format);		
+		if (FAILED(IWIC_bitmap_frame_encode->SetPixelFormat(&format)))
+		{
+			return false;
+		}		
+		if (FAILED(IWIC_bitmap_frame_encode->WriteSource(IWIC_bitmap, NULL)))
+		{
+			return false;
+		}		
+		if (FAILED(IWIC_bitmap_frame_encode->Commit()))
+		{
+			return false;
+		}		
+		if (FAILED(IWIC_bitmap_encoder->Commit()))
+		{
+			return false;
+		}
+		return true;
 	}
 
 	bool Desktop::prepare_buffer()
@@ -75,7 +135,8 @@ namespace ZDX
 		}
 
 		SIZE rect_size{ m_capture_rect.right - m_capture_rect.left, m_capture_rect.bottom - m_capture_rect.top };
-		m_buffer.reset(new BYTE[rect_size.cx * rect_size.cy * pixel_size]);
+		m_buffer_size = rect_size.cx * rect_size.cy * pixel_size;
+		m_buffer.reset(new BYTE[m_buffer_size]);
 
 		return !!m_buffer;
 	}

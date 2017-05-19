@@ -39,7 +39,6 @@ namespace ZDX
 		return { rect.right - rect.left, rect.bottom - rect.top };
 	}
 
-
 	size_t Monitor::pixel_size() const
 	{
 		return m_pixel_size;
@@ -62,7 +61,7 @@ namespace ZDX
 		SIZE buffer_offset_corner{ r.left - buffer_rect.left, r.top - buffer_rect.top };
 		size_t monitor_line_size = s.cx * m_pixel_size;
 		size_t buffer_line_size = (buffer_rect.right - buffer_rect.left) * m_pixel_size;
-		size_t buffer_offset = (buffer_line_size*buffer_offset_corner.cy + buffer_offset_corner.cx) * m_pixel_size;
+		size_t buffer_offset = buffer_line_size*buffer_offset_corner.cy + buffer_offset_corner.cx * m_pixel_size;
 
 		switch (rotation())
 		{
